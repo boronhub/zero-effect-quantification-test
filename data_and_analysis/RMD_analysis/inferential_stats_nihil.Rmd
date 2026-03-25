@@ -1,0 +1,513 @@
+---
+title: "Inferential statistics of the experimental data reported in *Neglect-Zero effects in the interpretation of quantifiers and disjunction*"
+author: "Oliver Bott, Fabian Schlotterbeck, Tomasz Klochowicz, Sonia Ramotowska & Maria Aloni"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cli)
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+library(trimr)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(dplyr)
+library(ggbreak)
+library(Rmisc)
+library(reshape2)
+library(stringr)
+library(rlang)
+library(naniar)
+library(LMERConvenienceFunctions)
+library(betareg)
+library(performance)
+library(forcats)
+```
+
+```{r load data,include=FALSE}
+load("trimmedData.RData")
+```
+
+# GLMER analysis of responses
+
+Responses analyzed in two separate GLMER analyses:
+1. Logit mixed-effects regression analysis of *weird question* vs. logically correct/incorrect answers (including all judgments provided within time limit)
+2. Logit mixed-effects regression analysis of correct vs. incorrect answers (excluding *weird question* responses)
+
+Both analyses conducted with Helmert coding of factor SIMPLIFIED MODEL (factor simplified from originally (up to) four levels to three levels: 1) psp violation, 2) empty set model, 3) control conditions), contrasts specified as follows:
+1. psp violation vs. rest
+2. empty set condition vs control conditions
+
+Other fixed effects included for ES-quantifier experiment: MONOTONICITY (UP vs. DOWN) and QUANTIFIER TYPE (ARIS(totelian) vs. COMP(arative)); both contrasts were sum coded. 
+
+```{r}
+# code given responses in two binary dependent variables: 1) psp violation (yes vs. no), 
+# 2) yes vs. no response, in case no psp violation occurred 
+trimmed_data_esq$psp_violation <- case_when(trimmed_data_esq$given_response %in% c("komische Frage")
+                                            ~ 1,
+                                            trimmed_data_esq$given_response %in% c("ja, stimmt", 
+                                                                                   "nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_esq$yes_no <- case_when(trimmed_data_esq$given_response %in% c("ja, stimmt")
+                                            ~ 1,
+                                            trimmed_data_esq$given_response %in% c("nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_esq$simp_model <- case_when(trimmed_data_esq$model %in% c("psp")
+                                            ~ "psp",
+                                            trimmed_data_esq$model %in% c("empty_set") 
+                                            ~ "empty",
+                                          trimmed_data_esq$model %in% c("true", "false") 
+                                            ~ "control")
+
+trimmed_data_esq$simp_model <- as.factor(trimmed_data_esq$simp_model)
+trimmed_data_esq$mono <- as.factor(trimmed_data_esq$mono)
+trimmed_data_esq$q_type <- as.factor(trimmed_data_esq$q_type)
+levels(trimmed_data_esq$simp_model)
+levels(trimmed_data_esq$simp_model)
+levels(trimmed_data_esq$simp_model)
+# Helmert coding of models (simp_model): contrast 1) psp vs. rest, 2) empty set vs. controls
+
+myhelmert = matrix(c(-1/3, -1/3, 2/3, .5, -.5, 0), ncol = 2)
+myhelmert
+
+
+contrasts(trimmed_data_esq$simp_model) = myhelmert
+contrasts(trimmed_data_esq$mono) = contr.sum(2)
+contrasts(trimmed_data_esq$q_type) = contr.sum(2)
+
+# analysis of psp violations in a logit mixed effects analysis
+
+
+
+esq_psp_m1.0 <- glmer(psp_violation ~ 1 + 
+                      mono *simp_model * q_type + 
+                              (1|id) + 
+                              (1+simp_model|scenario), 
+                            data = trimmed_data_esq, 
+                            family = binomial(link = "logit"),
+                            glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^7)))
+
+esq_psp_m1.1 <- update(esq_psp_m1.0, .~.-(1+simp_model|scenario)+(1|scenario))
+
+anova(esq_psp_m1.1, esq_psp_m1.0)
+
+#no convergence
+#esq_psp_m1.1.1 <- update(esq_psp_m1, .~.-(1|scenario)+(1|item))
+#anova(esq_psp_m1.1, esq_psp_m1.1.1)
+
+#...
+
+summary(esq_psp_m1.1) #sign. effect of simp_model1 
+
+###################################################################################################################################
+#### commented out: stepwise determination of random effects structure; only final model computed; leaving out by-item slopes #####
+###################################################################################################################################
+
+# ToDo: resolve interaction second contrast of simp_model x quant_type (probably due to greater difference between es and control for comparative qs)
+
+# analysis of yes vs. no responses in a logit mixed effects analysis
+
+
+
+# esq_acc_m1.0 <- glmer(accuracy ~ 1 + 
+#                     mono *simp_model * q_type + 
+#                              (1+simp_model*mono|id) + 
+#                              (1|scenario), 
+#                            data = trimmed_data_esq, 
+#                            family = binomial(link = "logit"),
+#                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+
+
+# esq_acc_m1.1 <- update(esq_acc_m1.0, .~.-(1+simp_model*mono|scenario)+(1+simp_model+mono|scenario))
+
+# anova(esq_acc_m1.1,esq_acc_m1.0)
+
+# esq_acc_m1.2 <- update(update(esq_acc_m1.1, .~.-(1+simp_model+mono|scenario)+(1+simp_model|scenario)))
+
+# anova(esq_acc_m1.1,esq_acc_m1.2)
+
+# esq_acc_m1.3 <- update(esq_acc_m1.2, .~.-(1+simp_model|scenario)+(1|scenario))
+
+# anova(esq_acc_m1.3,esq_acc_m1.2)
+
+# esq_acc_m1.4 <- update(esq_acc_m1.3, .~.-(1|scenario)+(1|item))
+
+# anova(esq_acc_m1.3,esq_acc_m1.4)
+
+# esq_acc_m1.5 <- update(esq_acc_m1.4, .~.-(1|item))
+
+# anova(esq_acc_m1.5,esq_acc_m1.4)
+
+# esq_acc_m1.6 <- update(esq_acc_m1.4, .~.-(1|item)+(1+simp_model|item))
+
+# anova(esq_acc_m1.6,esq_acc_m1.4)
+
+# esq_acc_m1.7 <- update(esq_acc_m1.6, .~.-(1+simp_model|item)+(1+simp_model+mono|item))
+
+# anova(esq_acc_m1.6,esq_acc_m1.7)
+
+# esq_acc_m1.8 <- update(esq_acc_m1.7, .~.-(1+simp_model+mono|item)+(1+simp_model*mono|item))
+
+# anova(esq_acc_m1.8,esq_acc_m1.7)
+ 
+ esq_acc_m1.4 <- glmer(accuracy ~ 1 + 
+                     mono *simp_model * q_type + 
+                              (1+simp_model*mono|id) + 
+                              (1|item), 
+                            data = trimmed_data_esq, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+
+summary(esq_acc_m1.4)
+
+#save(esq_acc_m1.8,esq_psp_m1.1,file="glmer_esq.RData")
+
+trimmed_data_esq_aris <- subset(trimmed_data_esq, trimmed_data_esq$q_type=="aristotelean")
+trimmed_data_esq_comp <- subset(trimmed_data_esq, trimmed_data_esq$q_type=="comparative")
+
+esq_aris_acc_m1.0 <- glmer(accuracy ~ 1 + 
+                      mono *simp_model + 
+                              (1+simp_model*mono|id) + 
+                              (1|item), 
+                            data = trimmed_data_esq_aris, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+summary(esq_aris_acc_m1.0)
+
+esq_comp_acc_m1.0 <- glmer(accuracy ~ 1 + 
+                      mono *simp_model + 
+                              (1+simp_model*mono|id) + 
+                              (1|item), 
+                            data = trimmed_data_esq_comp, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+summary(esq_comp_acc_m1.0)
+
+#save(esq_acc_m1.8,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,
+     #file="glmer_esq.RData")
+
+```
+
+*Distributivity* experiment only employed the factor MODEL. Contrasts coded as above.
+
+```{r}
+#Distributivity
+# code given responses in two binary dependent variables: 1) psp violation (yes vs. no), 
+# 2) yes vs. no response, in case no psp violation occurred 
+trimmed_data_fc$psp_violation <- case_when(trimmed_data_fc$given_response %in% c("komische Frage")
+                                            ~ 1,
+                                            trimmed_data_fc$given_response %in% c("ja, stimmt", 
+                                                                                   "nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_fc$yes_no <- case_when(trimmed_data_fc$given_response %in% c("ja, stimmt")
+                                            ~ 1,
+                                            trimmed_data_fc$given_response %in% c("nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_fc$simp_model <- case_when(trimmed_data_fc$model %in% c("psp")
+                                            ~ "psp",
+                                            trimmed_data_fc$model %in% c("empty_set") 
+                                            ~ "empty",
+                                          trimmed_data_fc$model %in% c("true", "false") 
+                                            ~ "control")
+
+# Helmert coding of models (simp_model): contrast 1) psp vs. rest, 2) empty vs. controls
+
+myhelmert = matrix(c(-1/3, -1/3, 2/3, .5, -.5, 0), ncol = 2)
+
+trimmed_data_fc$simp_model <- as.factor(trimmed_data_fc$simp_model)
+levels(trimmed_data_fc$simp_model)
+contrasts(trimmed_data_fc$simp_model) = myhelmert
+
+
+
+fc_psp_m1.0 <- glmer(psp_violation ~ 1 + 
+                              simp_model + 
+                              (1|id) + 
+                              (1|scenario), 
+                            data = trimmed_data_fc, 
+                            family = binomial(link = "logit"),
+                            glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^7)))
+
+summary(fc_psp_m1.0)
+
+trimmed_data_fc_wo_psp <- subset(trimmed_data_fc, trimmed_data_fc$model != "psp")
+
+fc_acc_m1.0 <- glmer(yes_no ~ 1 + 
+                              model + 
+                              (1+model|id) + 
+                              (1+model|item), 
+                            data = trimmed_data_fc_wo_psp, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+summary(fc_acc_m1.0)
+
+save(esq_acc_m1.4,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,fc_psp_m1.0,fc_acc_m1.0,
+     file="glmer_esq_new.RData")
+
+```
+
+#acc in scalar implicature experiment
+
+Simpler design. Just two models, no psp violation. Conduct single GLMER analysis comparing number of logical answers (i.e. *yes* responses) vs. "pragmatic" responses (*no* responses) for treatment coded contrast of model (base level: *implicature*; vs. *literal*). 
+
+```{r}
+#scalar implicature
+# code given responses in one binary dependent variable: 1) yes vs. no response ignoring "weird" question responses
+
+
+trimmed_data_si$yes_no <- case_when(trimmed_data_si$given_response %in% c("ja, stimmt")
+                                            ~ 1,
+                                            trimmed_data_si$given_response %in% c("nein, stimmt nicht") 
+                                            ~ 0)
+
+si_acc_m1.0 <- glmer(yes_no ~ 1 + 
+                              model + 
+                              (1|id) +
+                              (1|item), 
+                            data = trimmed_data_si, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+summary(si_acc_m1.0)
+
+si_acc_m1.1 <- glmer(yes_no ~ 1  + 
+                              (1|id) +
+                              (1|item), 
+                            data = trimmed_data_si, 
+                            family = binomial(link = "logit"),
+                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun=10^6)))
+anova(si_acc_m1.0,si_acc_m1.1)
+
+save(esq_acc_m1.4,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,fc_psp_m1.0,fc_acc_m1.0,si_acc_m1.0,
+     file="glmer_esq_new.RData")
+
+# sign. difference between models
+```
+
+
+#RT in Empty-Set Quantifiers
+
+Analyze RT data in LMER analyses ignoring PSP violations. Helmert contrast coding for COMP: 1) empty set model vs. controls, 2) small vs. large controls. The latter contrast is used to study MONOTONICITY x POLARITY interaction, the former contrast is used to study empty-set effects in RT. 
+
+```{r}
+trimmed_data_esq$yes_no <- as.factor(trimmed_data_esq$yes_no)
+
+trimmed_data_esq_wo_psp <- subset(trimmed_data_esq, trimmed_data_esq$model != "psp")
+
+trimmed_data_esq_wo_psp_comp <- subset(trimmed_data_esq_wo_psp, trimmed_data_esq_wo_psp$q_type == "comparative")
+
+trimmed_data_esq_wo_psp_aris <- subset(trimmed_data_esq_wo_psp, trimmed_data_esq_wo_psp$q_type == "aristotelean")
+
+
+#contrast
+rt_esq_helmert = matrix(c(2/3, -1/3, -1/3, 0, .5, -.5), ncol = 2)
+#comp
+trimmed_data_esq_wo_psp_comp$model <- as.factor(trimmed_data_esq_wo_psp_comp$model)
+contrasts(trimmed_data_esq_wo_psp_comp$model) = rt_esq_helmert
+#aris
+trimmed_data_esq_wo_psp_aris$model <- as.factor(trimmed_data_esq_wo_psp_aris$model)
+contrasts(trimmed_data_esq_wo_psp_aris$model) = rt_esq_helmert
+
+
+lmer_esq_comp.0 <- lmer(pictureRT ~ model*mono*yes_no+
+       (1|id)+
+       (1|item),
+     data = trimmed_data_esq_wo_psp_comp,
+     REML = FALSE)
+
+summary(lmer_esq_comp.0)
+
+
+lmer_esq_aris.0 <- lmer(pictureRT ~ simp_model*mono+yes_no+
+       (1|id)+
+       (1|item),
+     data = trimmed_data_esq_wo_psp_aris,
+     REML = FALSE)
+#Warning can be ignored here
+
+summary(lmer_esq_aris.0)
+
+lmer_esq.0 <- lmer(pictureRT ~ q_type*simp_model*mono+yes_no+
+       (1|id)+
+       (1|item),
+     data = trimmed_data_esq_wo_psp,
+     REML = FALSE)
+#Warning can be ignored here
+
+summary(lmer_esq.0)
+
+save(esq_acc_m1.4,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,fc_psp_m1.0,fc_acc_m1.0,si_acc_m1.0,lmer_esq_comp.0, lmer_esq_aris.0,
+     lmer_esq.0,
+     file="glmer_esq_new.RData")
+```
+
+# RT in Distributivity Experiment 
+
+
+```{r}
+trimmed_data_fc$yes_no <- case_when(trimmed_data_fc$given_response %in% c("ja, stimmt")
+                                            ~ 1,
+                                            trimmed_data_fc$given_response %in% c("nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_fc_wo_psp <- subset(trimmed_data_fc, trimmed_data_fc$model != "psp")
+
+trimmed_data_fc_wo_psp$yes_no <- as.factor(trimmed_data_fc_wo_psp$yes_no)
+trimmed_data_fc_wo_psp$model <- as.factor(trimmed_data_fc_wo_psp$model)
+# contr.treatment(trimmed_data_fc_wo_psp$model, base = "empty_set")
+
+
+lmer_fc.0 <- lmer(pictureRT ~ model * yes_no +
+                    (1|id) +
+                    (1|item), 
+                  data = trimmed_data_fc_wo_psp,
+                  REML = FALSE)
+
+summary(lmer_fc.0)
+
+lmer_fc.1 <- update(lmer_fc.0, .~. - model:yes_no)
+
+anova(lmer_fc.1,lmer_fc.0)
+
+lmer_fc.2 <- update(lmer_fc.1, .~. - model)
+
+anova(lmer_fc.1,lmer_fc.2)
+
+summary(lmer_fc.1)
+
+# test for answer polarity effect in zero models
+
+trimmed_data_fc_wo_psp_only_zero_model <- subset(trimmed_data_fc_wo_psp, trimmed_data_fc_wo_psp$model == "empty_set")
+
+lmer_fc_zero_model.0 <- lmer(pictureRT ~ yes_no +
+                    (1+yes_no|id) +
+                    (1+yes_no|item), 
+                  data = trimmed_data_fc_wo_psp_only_zero_model,
+                  REML = FALSE)
+
+summary(lmer_fc_zero_model.0)
+
+lmer_fc_zero_model.1 <- lmer(pictureRT ~ 1 +
+                    (1+yes_no|id) +
+                    (1+yes_no|item), 
+                  data = trimmed_data_fc_wo_psp_only_zero_model,
+                  REML = FALSE)
+
+anova(lmer_fc_zero_model.0,lmer_fc_zero_model.1)
+
+# sign.; neglect-zero responses take longer than classical logical responses 
+```
+
+#RT in Scalar Implicature
+
+```{r}
+trimmed_data_si$yes_no <- case_when(trimmed_data_si$given_response %in% c("ja, stimmt")
+                                            ~ 1,
+                                            trimmed_data_si$given_response %in% c("nein, stimmt nicht") 
+                                            ~ 0)
+
+trimmed_data_si$yes_no <- as.factor(trimmed_data_si$yes_no)
+
+trimmed_data_si_only_literal <- subset(trimmed_data_si, trimmed_data_si$model == "literal")
+
+# answer polarity effect in "imp: false; lit: true" models: pragmatic responses take longer than classical logical responses
+
+lmer_si.0 <- lmer(pictureRT ~ yes_no +
+                    (1+yes_no|id) +
+                    (1|item), 
+                  data = trimmed_data_si_only_literal,
+                  REML = FALSE)
+
+lmer_si.1 <- lmer(pictureRT ~ 1 +
+                    (1+yes_no|id) +
+                    (1|item), 
+                  data = trimmed_data_si_only_literal,
+                  REML = FALSE)
+
+anova(lmer_si.0,lmer_si.1)
+
+summary(lmer_si.0)
+
+save(esq_acc_m1.4,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,fc_psp_m1.0,si_acc_m1.0,lmer_fc_zero_model.0,lmer_fc_zero_model.1,fc_acc_m1.0,lmer_esq_comp.0, lmer_esq_aris.0,
+     lmer_esq.0,lmer_fc.1,lmer_si.0,lmer_si.1,
+     file="glmer_esq_new.RData")
+```
+
+#Comparison response RT effect of distributivity inferences vs. scalar inferences
+
+```{r}
+as.factor(trimmed_data_selection$experiment)
+as.factor(trimmed_data_selection$given_response)
+droplevels(trimmed_data_selection$given_response)
+
+#lmer analysis; use dummy coding of contrasts; ESQ controls as baseline; "ja, stimmt" as baseline for response
+#experimental data/conditions in the analysis: ESQ every (true and false controls), 
+#FC (neglect zero, yes vs. no responses), SI (imp false model, yes vs. no responses)
+
+lmer_response_polarity_effect.0 <- lmer(pictureRT ~ experiment*given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection,
+                  REML = FALSE)
+
+summary(lmer_response_polarity_effect.0)
+
+lmer_response_polarity_effect.1 <- lmer(pictureRT ~ experiment+given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection,
+                  REML = FALSE)
+
+anova(lmer_response_polarity_effect.0,lmer_response_polarity_effect.1)
+
+#further investigate interaction in subset analyses
+#ESQ vs. FC; no interaction with response polarity
+
+trimmed_data_selection_esq_fc <- subset(trimmed_data_selection, trimmed_data_selection$experiment != "SI")
+
+lmer_response_polarity_effect_esq_fc.0 <- lmer(pictureRT ~ experiment*given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection_esq_fc,
+                  REML = FALSE)
+
+summary(lmer_response_polarity_effect_esq_fc.0)
+
+lmer_response_polarity_effect_esq_fc.1 <- lmer(pictureRT ~ experiment+given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection_esq_fc,
+                  REML = FALSE)
+
+anova(lmer_response_polarity_effect_esq_fc.0,lmer_response_polarity_effect_esq_fc.1)
+#ESQ vs. SI; interaction with response polarity
+
+trimmed_data_selection_esq_si <- subset(trimmed_data_selection, trimmed_data_selection$experiment != "FC")
+
+lmer_response_polarity_effect_esq_si.0 <- lmer(pictureRT ~ experiment*given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection_esq_si,
+                  REML = FALSE)
+
+summary(lmer_response_polarity_effect_esq_si.0)
+
+lmer_response_polarity_effect_esq_si.1 <- lmer(pictureRT ~ experiment+given_response +
+                    (1+experiment+given_response|id) +
+                    (1|item), 
+                  data = trimmed_data_selection_esq_si,
+                  REML = FALSE)
+
+anova(lmer_response_polarity_effect_esq_si.0,lmer_response_polarity_effect_esq_si.1)
+
+save(esq_acc_m1.4,esq_psp_m1.1,esq_aris_acc_m1.0,esq_comp_acc_m1.0,fc_psp_m1.0,si_acc_m1.0,lmer_fc_zero_model.0,lmer_fc_zero_model.1,fc_acc_m1.0,lmer_esq_comp.0, lmer_esq_aris.0,
+     lmer_esq.0,lmer_fc.1,lmer_si.0,lmer_si.1,lmer_response_polarity_effect.0,lmer_response_polarity_effect_esq_fc.0,lmer_response_polarity_effect_esq_si.0,
+     file="glmer_esq_new.RData")
+```

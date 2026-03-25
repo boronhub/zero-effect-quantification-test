@@ -1,0 +1,757 @@
+---
+title: "Preprocessing of the experimental data reported in *Neglect-Zero effects in the interpretation of quantifiers and disjunction*"
+author: "Oliver Bott, Fabian Schlotterbeck, Tomasz Klochowicz, Sonia Ramotowska & Maria Aloni"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cli)
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+library(trimr)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(dplyr)
+library(ggbreak)
+library(Rmisc)
+library(reshape2)
+library(stringr)
+library(rlang)
+library(naniar)
+library(LMERConvenienceFunctions)
+library(betareg)
+library(performance)
+library(forcats)
+
+```
+
+# Preprocessing 
+## Import data from .csv
+```{r}
+rm(list=ls())
+source("sdTrimBugFixed.R")
+
+plots_dir<- file.path(getwd(),"plots")
+if(!dir.exists(plots_dir)) dir.create(plots_dir, recursive = TRUE, showWarnings = FALSE)
+
+subj_info <- read.csv(file = file.path("..", "data", "hohenentringen_subj_info.csv"))
+data <- read.csv(file = file.path("..", "data", "hohenentringen.csv"))
+
+```
+
+## Some basic information about data
+### Show how many pps
+```{r}
+sum(xtabs(~id, data=data)/205)
+```
+### Show how many trials each pp has done
+```{r}
+xtabs(~id, data)
+```
+### Show more stuff
+```{r, results='hide'}
+round(xtabs(~condition,data))
+xtabs(~id+list, data=data)
+xtabs(~item+condition, data=data)
+```
+### Prepare pp exclusion
+```{r}
+exclude <- NULL
+```
+
+### Show missing reading times
+```{r}
+xtabs(~data$time.out=="1",data)
+```
+<!-- ### Take a closer look at missing data -->
+<!-- ```{r} -->
+<!-- xtabs(~data$participant_id[which(data$time.out=="1")], data) -->
+
+<!-- ### Exclude participants -->
+<!-- ```{r} -->
+<!-- exclude <- ... -->
+<!-- ``` -->
+### Mark all time out data as NA
+```{r}
+data$pictureRT[which(data$time.out=="1")] <- NA
+xtabs(~is.na(data$pictureRT),data)
+```
+### Remove trials with NA values in pic rt
+```{r}
+data <- subset(data, !is.na(data$pictureRT))
+# nrow(subset(data, is.na(data$id)))
+# data <- subset(data, !is.na(data$id))
+```
+### Show average duration for experiments
+```{r}
+hist(subj_info$time_in_minutes, main = "Duration of experiments", xlab = "processing time in mins")
+mean(subj_info$time_in_minutes) # N = 19.7
+sd(subj_info$time_in_minutes)   # SD = 7.8
+```
+### Show pps more than three SD away from mean and add them to exclude list
+```{r}
+distance <- 3
+x <- mean(subj_info$time_in_minutes) + distance * sd(subj_info$time_in_minutes)
+y <- mean(subj_info$time_in_minutes) - distance * sd(subj_info$time_in_minutes)
+filter(subj_info, time_in_minutes < y | time_in_minutes > x)
+(exclude <- append(exclude, filter(subj_info, time_in_minutes < y | time_in_minutes > x)$id))
+
+```
+### Show missing reading times
+```{r}
+sort(tapply(data$ordered_responses, c(data$response_order), first))
+#data$given_response <- ""
+data$given_response <- case_when(data$response==37 ~ case_when(data$response_order %in% c(1,2)
+                                                             ~ "ja, stimmt",
+                                                             data$response_order %in% c(3,4)
+                                                             ~ "nein, stimmt nicht",
+                                                             data$response_order %in% c(5,6)
+                                                             ~ "komische Frage"),
+                                    data$response==40 ~ case_when(data$response_order %in% c(5,3)
+                                                             ~ "ja, stimmt",
+                                                             data$response_order %in% c(1,6)
+                                                             ~ "nein, stimmt nicht",
+                                                             data$response_order %in% c(2,4)
+                                                             ~ "komische Frage"),
+                                    data$response==39 ~ case_when(data$response_order %in% c(4,6)
+                                                             ~ "ja, stimmt",
+                                                             data$response_order %in% c(2,5)
+                                                             ~ "nein, stimmt nicht",
+                                                             data$response_order %in% c(1,3)
+                                                             ~ "komische Frage"))
+data$accuracy <- NULL
+data$accuracy <- ifelse(tolower(data$given_response) == tolower(data$expected_response), 1, 0)
+check_response_coding<-data[,c("response","ordered_responses","given_response","expected_response","accuracy")]
+```
+
+### Histogram of accuracy In (real) fillers (items 1000+) and/or 'homogeneity' items correctly
+```{r}
+data$item <- as.numeric(data$item)
+#attention_controls <- data[data$item >= 1000,]#|| 
+attention_controls <- data[(data$item>= 200 & data$item < 300 & data$condition %in% c(1,2,4)),]
+
+
+control_accuracy<-aggregate(attention_controls$accuracy,list(attention_controls$id),mean,na.rm=TRUE)
+names(control_accuracy)<- c("id","accuracy")
+
+hist(control_accuracy$accuracy, main = "Frequency of percentages of false judgements in verification trials", xlab = "percentage of false judgements")
+```
+
+### Show how many pps are excluded under a given cut-off of 80%
+```{r}
+sum(control_accuracy$accuracy>=.8)
+sum(control_accuracy$accuracy<.8)
+(exclude <- append(exclude, control_accuracy[control_accuracy$accuracy<.8,]$id))
+```
+
+### Identify and exclude trials with extremely long reading times
+```{r}
+#melt_data_read <- subset(melt_data, roi!= "pictureRT" & !is.na(melt_data$rt))
+#with(melt_data_read, plot(rt, col=participant_id))
+data$read_time<-as.numeric(str_sub(data$read_time,2,-2))
+cutoff_ex_rt <- 10000
+data$extreme_read_time <- ifelse(data$read_time>cutoff_ex_rt,1,0)
+aggregate(data$extreme_read_time,list(data$id),mean,na.rm=T)
+#Sine no pp has extreme reading times in more than 5% of the trials and they are distributed evenly across conditions in the most extreme pp, we only exclude these individual trials instead of all the data from those pps
+#TODO: exclude >5%
+filtered_data <- subset(data, data$read_time<=cutoff_ex_rt)
+
+```
+
+### Remove excluded pps 
+```{r}
+filtered_data <- subset(filtered_data, !(id %in% exclude))
+```
+### Check how many pps remained
+```{r}
+length(unique(filtered_data$id))
+```
+
+
+### Use trimr to trim picture rt
+```{r}
+trimmed_data <- filtered_data
+
+trimmed_data$cond <- trimmed_data$condition
+trimmed_data$acc <- trimmed_data$accuracy
+
+trimmed_data$pictureRT <- as.numeric(trimmed_data$pictureRT)
+trimmed_data$rt = trimmed_data$pictureRT
+trimmed_data$participant <- trimmed_data$id
+trimmed_data$condition <- as.factor(paste(trimmed_data$experiment))
+trimmed_data$accuracy <- 1 #(accuracy only because trimr needs this colmun name to function)
+
+
+trimmed_data <- sdTrimBugFixed(data = trimmed_data, minRT = 200, sd = 3, 
+                       perCondition = TRUE, perParticipant = TRUE,
+                       omitErrors = FALSE, returnType = "raw", digits = 0)
+
+hist(trimmed_data$rt)
+range(trimmed_data$rt)
+hist(trimmed_data$pictureRT)
+range(trimmed_data$pictureRT)
+
+
+trimmed_data$condition <- trimmed_data$cond
+trimmed_data$accuracy <- trimmed_data$acc
+```
+
+### Convert to factor
+```{r}
+trimmed_data$id <- droplevels(as.factor(trimmed_data$id))
+```
+
+
+
+### Subset experiment and filler items 
+```{r}
+trimmed_data_esq <- subset(trimmed_data, experiment == "ES_Q")
+trimmed_data_fc <- subset(trimmed_data, experiment == "FC")
+trimmed_data_hom <- subset(trimmed_data, experiment == "Homogeneity") # additional experiment, included as fillers; all plots commented out
+trimmed_data_si <- subset(trimmed_data, experiment == "SI")
+trimmed_data_upto <- subset(trimmed_data, experiment == "Up_to")
+trimmed_data_fillers <- subset(trimmed_data, experiment == "Filler")
+
+
+```
+
+## Exp1
+### Name quantifiers, models, etc. and recombine data frames 
+```{r}
+###ESQ
+trimmed_data_esq$quantifier = case_when(trimmed_data_esq$condition %in% c(1,2,3,4) ~ "less",
+                                        trimmed_data_esq$condition %in% c(5,6,7,8) ~ "more",
+                                        trimmed_data_esq$condition %in% c(9,10,11,12) ~ "every",
+                                        trimmed_data_esq$condition %in% c(13,14,15,16) ~ "no")
+
+trimmed_data_esq$model = case_when(trimmed_data_esq$condition %in% c(1,5,9,13) ~ "psp",
+                                   trimmed_data_esq$condition %in% c(2,6,10,14) ~ "empty_set",
+                                   trimmed_data_esq$condition %in% c(3,8,12) ~ "true",
+                                   trimmed_data_esq$condition %in% c(4,7,11,15,16) ~ "false")
+
+trimmed_data_esq$q_type = case_when(trimmed_data_esq$condition %in% 1:8 ~ "comparative",
+                                    trimmed_data_esq$condition %in% 9:16 ~ "aristotelean")
+
+trimmed_data_esq$mono = case_when(trimmed_data_esq$condition %in% c(1:4,13:16) ~ "down",
+                                  trimmed_data_esq$condition %in% c(5:8,9:12) ~ "up")
+
+
+###DIST
+trimmed_data_fc$model = case_when(trimmed_data_fc$condition %in% c(1,5) ~ "psp",
+                                  trimmed_data_fc$condition %in% c(2,6) ~ "empty_set",
+                                  trimmed_data_fc$condition %in% c(3,7) ~ "true",
+                                  trimmed_data_fc$condition %in% c(4,8) ~ "false")
+
+trimmed_data_fc$disj_order = case_when(trimmed_data_fc$condition %in% 1:4 ~ "left",
+                                       trimmed_data_fc$condition %in% 5:8 ~ "right")
+
+##SI
+trimmed_data_si$model = case_when(trimmed_data_si$condition %in% c(1) ~ "implicature",
+                                  trimmed_data_si$condition %in% c(2) ~ "literal")
+
+##Homogeneity
+trimmed_data_hom$model = case_when(trimmed_data_hom$condition %in% c(1) ~ "psp",
+                                   trimmed_data_hom$condition %in% c(4) ~ "true",
+                                   trimmed_data_hom$condition %in% c(3) ~ "inhom",
+                                   trimmed_data_hom$condition %in% c(2) ~ "false")
+
+```
+
+
+
+
+
+
+### Generate plots for accuracy (always relative to logical responses)
+```{r}
+plot_fc_acc <- ggplot(trimmed_data_fc, aes(y=accuracy, x=model, color=disj_order)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+  scale_y_continuous(labels = scales::percent) +
+  theme(text = element_text(size = 15)) + 
+  ylab("mean logical responses (+/- 1 SEM)") + 
+  scale_x_discrete(breaks=c("empty_set","false", "psp","true"),
+                   labels=c("zero","false", "psp","true")) +
+  scale_colour_discrete(labels = c("C-1 or C-2", "C-2 or C-1")) +
+  theme(text = element_text(size = 15))  + labs(colour = "disj. order")
+  
+
+plot_fc_acc
+
+ggsave(file.path(plots_dir,"plot_dist_acc.pdf"), width = 7, height = 7)
+ggsave(file.path(plots_dir,"plot_dist_acc.png"), width = 7, height = 7)
+
+plot_fc_acc_simp <- ggplot(trimmed_data_fc, aes(y=accuracy, x=model)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+  scale_y_continuous(labels = scales::percent) +
+  theme(text = element_text(size = 15)) + 
+  ylab("mean logical responses (+/- 1 SEM)") + 
+  scale_x_discrete(breaks=c("empty_set","false", "psp","true"),
+                   labels=c("zero","false", "psp","true"))  +
+  theme(text = element_text(size = 15))
+  
+
+plot_fc_acc_simp
+
+ggsave(file.path(plots_dir,"plot_dist_acc_simp.pdf"), width = 7, height = 7)
+ggsave(file.path(plots_dir,"plot_dist_acc_simp.png"), width = 7, height = 7)
+
+trimmed_data_esq$quantifier <- factor(trimmed_data_esq$quantifier, levels = c("less", "more", "no", "every"), labels = c("less than n", "more than n", "no", "every"))
+
+plot_esq_acc <- ggplot(trimmed_data_esq, aes(y=accuracy, x=model, colour = quantifier)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+  scale_y_continuous(labels = scales::percent) + 
+  theme(text = element_text(size = 15)) + 
+  ylab("mean logical responses (+/- 1 SEM)") + 
+  scale_x_discrete(breaks=c("empty_set","false", "psp","true"),
+                   labels=c("zero","false", "psp","true")) 
+
+plot_esq_acc
+
+ggsave(file.path(plots_dir,"plot_esq_acc.pdf"), width = 7, height = 7)
+ggsave(file.path(plots_dir,"plot_esq_acc.png"), width = 7, height = 7)
+
+plot_si_acc <- ggplot(trimmed_data_si, aes(y=accuracy, x=model)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) +
+  scale_y_continuous(labels = scales::percent) +
+  theme(text = element_text(size = 15)) + 
+  ylab("mean logical responses (+/- 1 SEM)") + 
+  scale_x_discrete(breaks=c("implicature","literal"),
+                   labels=c("lit: true, imp: true","lit: true, imp: false")) 
+
+plot_si_acc
+
+ggsave(file.path(plots_dir,"plot_si_acc.pdf"), width = 4, height = 7)
+ggsave(file.path(plots_dir,"plot_si_acc.png"), width = 4, height = 7)
+
+#plot_hom_acc <- ggplot(trimmed_data_hom, aes(y=accuracy, x=model)) +
+#  stat_summary(fun = mean,
+#               geom = "pointrange",
+#               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+#               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+#  scale_y_continuous(labels = scales::percent) + 
+#  theme(text = element_text(size = 15)) + 
+#  ylab("mean logical responses (+/- 1 SEM)")
+
+#plot_hom_acc
+
+#ggsave(file.path(plots_dir,"plot_hom_acc.pdf"), width = 7, height = 7)
+#ggsave(file.path(plots_dir,"plot_hom_acc.png"), width = 7, height = 7)
+```
+
+# Stacked bar charts showing all three responses
+
+```{r}
+# stacked bar chart for FC
+trimmed_data_fc$given_response <- as.factor(trimmed_data_fc$given_response)
+
+stacked_fc <- trimmed_data_fc %>%
+  mutate(model = fct_relevel(model, 
+              "psp", "empty_set",  "true", "false")) %>%
+  mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage")) %>%
+  mutate(quantifier='or') %>%
+  ggplot(aes(x = model, fill = given_response)) +
+  geom_bar(position = "fill", stat = "count") + scale_y_continuous(labels = scales::percent) + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 2),
+                   breaks=c("psp","empty_set", "true","false"),
+                   labels=c("Emp Restr.","DIST-viol", "True Ctrl.","False Ctrl.")) + 
+  
+  geom_text(size=15,aes(label = paste0("n=", after_stat(count))), stat='count', position = position_fill(vjust = 0.5)) + 
+  theme_classic() +
+  theme(text = element_text(size = 50)) +
+  theme(legend.position = 'none')+
+  theme(axis.title.y=element_blank(), axis.text.y=element_blank(), axis.title.x=element_blank())+
+  scale_fill_discrete(labels = c("no, incorrect", "yes, correct", "weird question")) +
+  labs(fill = "Response") +  
+  facet_grid(~quantifier)
+
+stacked_fc
+
+ggsave(file.path(plots_dir,"stacked_dist.pdf"), width = 8, height = 15)
+ggsave(file.path(plots_dir,"stacked_dist.png"), width = 8, height = 15)
+
+
+# stacked bar chart for Homogeneity
+#trimmed_data_hom$given_response <- as.factor(trimmed_data_hom$given_response)
+
+#stacked_hom <- trimmed_data_hom %>%
+#  mutate(given_response = fct_relevel(given_response, 
+#              "nein, stimmt nicht", "ja, stimmt",  "komische Frage")) %>%
+#  ggplot(aes(x = model, fill = given_response)) +
+#  geom_bar(position = "fill", stat = "count") + scale_y_continuous(labels = scales::percent) + 
+#  ylab("distributions of answers") +
+#  geom_text(aes(label = paste0("n=", after_stat(count))), stat='count', position = position_fill(vjust = 0.5)) +
+#  theme_classic()+
+#  theme(text = element_text(size = 35)) +
+#  scale_fill_discrete(labels = c("no, incorrect", "yes, correct", "weird question")) +
+#  labs(fill = "Response") 
+
+#stacked_hom
+
+#ggsave(file.path(plots_dir,"stacked_hom.pdf"), width = 12, height = 7)
+#ggsave(file.path(plots_dir,"stacked_hom.png"), width = 12, height = 7)
+```
+
+##change figure width for facet grid and ESQ
+
+```{r}
+
+# stacked bar chart for ESQ
+trimmed_data_esq$given_response <- as.factor(trimmed_data_esq$given_response)
+
+stacked_esq <- trimmed_data_esq %>%
+  mutate(model = fct_relevel(model, 
+              "psp", "empty_set",  "true", "false")) %>%
+  mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage"))  %>%
+  ggplot(aes(x = model, fill = given_response)) +
+  geom_bar(position = "fill", stat = "count") + scale_y_continuous(labels = scales::percent) + ylab("rel. frequencies of answers") +
+  geom_text(size=15,aes(label = paste0("n=", after_stat(count))), stat='count', position = position_fill(vjust = 0.5)) +
+  theme_classic() +
+  theme(text = element_text(size = 50)) + 
+  scale_x_discrete(guide = guide_axis(n.dodge = 2), 
+                   breaks=c("psp", "empty_set",  "true", "false"),
+                   labels=c("Empty Restr.","Empty Scope", "True Ctrl.","False Ctrl."))  +
+  scale_fill_discrete(labels = c("no, incorrect", "yes, correct", "odd question")) +
+  theme(text = element_text(size = 50),axis.title.x=element_blank()) + 
+  theme(legend.position = 'none')+
+  labs(fill = "Response") +
+  facet_grid(~ quantifier)
+
+stacked_esq
+
+ggsave(file.path(plots_dir,"stacked_esq.pdf"), width = 36, height = 15)
+ggsave(file.path(plots_dir,"stacked_esq.png"), width = 36, height = 15)
+
+```
+
+#adjust figure width for SI
+
+```{r}
+# stacked bar chart for SI
+
+trimmed_data_si$given_response <- as.factor(trimmed_data_si$given_response)
+
+stacked_si <- trimmed_data_si %>%
+  mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage")) %>%
+  ggplot(aes(x = model, fill = given_response)) +
+  geom_bar(position = "fill", stat = "count") + scale_y_continuous(labels = scales::percent) + ylab("distributions of answers") +
+  geom_text(aes(label = paste0("n=", after_stat(count))), stat='count', position = position_fill(vjust = 0.5)) +
+  scale_x_discrete(breaks=c("implicature","literal"),
+                   labels=c("lit: true, imp: true","lit: true, imp: false"))  +
+  theme_classic() +
+  theme(text = element_text(size = 18)) +
+  scale_fill_discrete(labels = c("no, incorrect", "yes, correct", "weird question")) +
+  theme(text = element_text(size = 15)) + 
+  labs(fill = "Response") 
+
+stacked_si
+
+ggsave(file.path(plots_dir,"stacked_si.pdf"))
+ggsave(file.path(plots_dir,"stacked_si.png"))
+
+```
+
+
+## Encode
+### Encode legit responses 
+```{r}
+###ESQ
+trimmed_data_esq$legit_responses_one = case_when(trimmed_data_esq$condition %in% c(2,3,8,12,14)
+                                             ~ case_when(tolower(trimmed_data_esq$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             trimmed_data_esq$condition %in% c(1,5,9,13)
+                                             ~ case_when(tolower(trimmed_data_esq$given_response)
+                                                         == tolower("komische Frage") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_esq$legit_responses_two = case_when(trimmed_data_esq$condition
+                                                 %in% c(2,4,6,7,10,11,14,16,15)
+                                                 ~ case_when(tolower(trimmed_data_esq$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+
+
+###DIST
+trimmed_data_fc$legit_responses_one = case_when(trimmed_data_fc$condition %in% c(2,3,6,7)
+                                             ~ case_when(tolower(trimmed_data_fc$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             trimmed_data_fc$condition %in% c(1,5)
+                                             ~ case_when(tolower(trimmed_data_fc$given_response)
+                                                         == tolower("komische Frage") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_fc$legit_responses_two = case_when(trimmed_data_fc$condition
+                                                 %in% c(2,6,4,8)
+                                                 ~ case_when(tolower(trimmed_data_fc$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+
+###SI
+trimmed_data_si$legit_responses_one = case_when(trimmed_data_si$condition %in% c(1,2)
+                                             ~ case_when(tolower(trimmed_data_si$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_si$legit_responses_two = case_when(trimmed_data_si$condition
+                                                 %in% c(2)
+                                                 ~ case_when(tolower(trimmed_data_si$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+
+
+```
+
+
+
+
+### Subset to legit responses 
+```{r}
+###ESQ
+trimmed_data_esq_legit <- subset(trimmed_data_esq, trimmed_data_esq$legit_responses_one | trimmed_data_esq$legit_responses_two)
+
+###DIST
+trimmed_data_fc_legit <- subset(trimmed_data_fc, trimmed_data_fc$legit_responses_one | trimmed_data_fc$legit_responses_two)
+
+###SI
+trimmed_data_si_legit <- subset(trimmed_data_si, trimmed_data_si$legit_responses_one | trimmed_data_si$legit_responses_two)
+
+
+```
+
+
+### Plot RT of legit responses 
+```{r}
+###ESQ
+plot_esq_rt_legit <- trimmed_data_esq_legit  %>%
+  mutate(model = fct_relevel(model, 
+              "psp", "empty_set",  "true", "false")) %>%
+  mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage"))  %>%
+  ggplot(aes(y=pictureRT, x=model, colour = given_response)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+  #scale_y_continuous(labels = scales::percent) + 
+  ylab("mean RT in ms. (+/- 1 SEM)") +
+   scale_x_discrete(breaks=c("psp", "empty_set",  "true", "false"),
+                   labels=c("Empty Restr.","Empty Scope", "True Ctrl.","False Ctrl."))  +
+  scale_colour_discrete(labels = c("no, incorrect", "yes, correct", "weird question")) +
+   
+  facet_grid(~ quantifier) +
+  theme(text = element_text(size = 22), axis.title.x=element_blank(), axis.text.x = element_text(angle = 60, vjust = 1, hjust=1)) + 
+  theme(legend.position = 'none')+
+  coord_cartesian(ylim = c(1000, 2300))+
+  labs(colour = "Response") 
+  
+  
+
+plot_esq_rt_legit
+
+ggsave(file.path(plots_dir,"plot_esq_rt_legit.pdf"), width = 12, height = 6)
+ggsave(file.path(plots_dir,"plot_esq_rt_legit.png"), width = 12, height = 6)
+
+
+
+###DIST
+plot_fc_rt_legit <- trimmed_data_fc_legit  %>%
+  mutate(quantifier='or') %>%
+    mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage"))  %>%
+  mutate(model = fct_relevel(model, 
+              "psp", "empty_set",  "true", "false")) %>%
+  ggplot( aes(y=pictureRT, x=model, colour = given_response)) + stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x)))+
+  #scale_y_continuous(labels = scales::percent) + 
+  ylab("mean RT in ms. (+/- 1 SEM)") +
+ scale_x_discrete(breaks=c("psp", "empty_set",  "true", "false"),
+                   labels=c("Emp Restr.","DIST-viol", "True Ctrl.","False Ctrl."))  +
+  scale_colour_discrete(labels = c("no, incorrect", "yes, correct", "weird question")) +
+       theme(legend.position = 'none')+
+  theme(text = element_text(size = 22))  + 
+   facet_grid(~ quantifier) +
+  theme(axis.title.y=element_blank(), axis.text.y=element_blank(),axis.title.x=element_blank(),axis.text.x = element_text(angle = 60, vjust = 1, hjust=0.85))+
+  coord_cartesian(ylim = c(1000, 2300))+
+  labs(colour = "Response")
+
+plot_fc_rt_legit
+
+#ggsave(file.path(plots_dir,"plot_fc_rt_legit.pdf"), width = 4, height = 5)
+#ggsave(file.path(plots_dir,"plot_fc_rt_legit.png"), width = 4, height = 5)
+ggsave(file.path(plots_dir,"plot_dist_rt_legit_wo.pdf"), width = 3, height = 6)
+ggsave(file.path(plots_dir,"plot_dist_rt_legit_wo.png"), width = 3, height = 6)
+
+plot_fc_rt <- ggplot(trimmed_data_fc, aes(y=pictureRT, x=model, colour = given_response)) + stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x)))+
+  #scale_y_continuous(labels = scales::percent) + 
+  ylab("mean RT in ms. (+/- 1 SEM)") +
+    scale_x_discrete(breaks=c("empty_set","false", "psp","true"),
+                   labels=c("zero","false", "psp","true")) +
+  scale_colour_discrete(labels = c("yes, correct", "weird question", "no, incorrect")) +
+ 
+  theme(text = element_text(size = 15)) 
+
+plot_fc_rt
+
+ggsave(file.path(plots_dir,"plot_dist_rt.pdf"))
+ggsave(file.path(plots_dir,"plot_dist_rt.png"))
+
+plot_si_rt_legit <- trimmed_data_si_legit  %>%
+  mutate(model = fct_relevel(model, 
+              "psp", "empty_set",  "true", "false")) %>% ggplot(aes(y=pictureRT, x=model, colour = given_response)) + stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x)))+
+  #scale_y_continuous(labels = scales::percent) + 
+  ylab("mean RT in ms. (+/- 1 SEM)") +
+  #scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  scale_x_discrete(breaks=c("implicature", "literal"),
+                   labels=c("lit: true, imp: true", "lit: true, imp: false")) +
+  scale_colour_discrete(labels = c("yes, correct", "no, incorrect")) +
+  theme(text = element_text(size = 15)) + 
+  labs(colour = "Response") 
+
+plot_si_rt_legit
+
+ggsave(file.path(plots_dir,"plot_si_rt_legit.pdf"))
+ggsave(file.path(plots_dir,"plot_si_rt_legit.png"))
+
+
+```
+
+#Merge data for comparison between response polarity effects of distributivity vs scalar implicature inferences
+
+Comparison within UE Aristotelean quantifiers. Include control conditions for *every* from ESQ subexperiment as baseline comparisons.
+
+```{r}
+###ESQ
+trimmed_data_esq$selection_responses_one = case_when(trimmed_data_esq$condition %in% c(12)
+                                             ~ case_when(tolower(trimmed_data_esq$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_esq$selection_responses_two = case_when(trimmed_data_esq$condition
+                                                 %in% c(11)
+                                                 ~ case_when(tolower(trimmed_data_esq$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+###FC
+trimmed_data_fc$selection_responses_one = case_when(trimmed_data_fc$condition %in% c(2,6)
+                                             ~ case_when(tolower(trimmed_data_fc$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_fc$selection_responses_two = case_when(trimmed_data_fc$condition
+                                                 %in% c(2,6)
+                                                 ~ case_when(tolower(trimmed_data_fc$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+###SI
+trimmed_data_si$selection_responses_one = case_when(trimmed_data_si$condition %in% c(2)
+                                             ~ case_when(tolower(trimmed_data_si$given_response)
+                                                         == tolower("ja, stimmt") ~ TRUE,
+                                                         .default = FALSE),
+                                             .default=FALSE)
+
+trimmed_data_si$selection_responses_two = case_when(trimmed_data_si$condition
+                                                 %in% c(2)
+                                                 ~ case_when(tolower(trimmed_data_si$given_response)
+                                                             == tolower("nein, stimmt nicht") ~ TRUE,
+                                                             .default = FALSE),
+                                                 .default = FALSE)
+
+###ESQ
+trimmed_data_esq_selection <- subset(trimmed_data_esq, trimmed_data_esq$selection_responses_one | trimmed_data_esq$selection_responses_two)
+
+###FC
+trimmed_data_fc_selection <- subset(trimmed_data_fc, trimmed_data_fc$selection_responses_one | trimmed_data_fc$selection_responses_two)
+
+###SI
+trimmed_data_si_selection <- subset(trimmed_data_si, trimmed_data_si$selection_responses_one | trimmed_data_si$selection_responses_two)
+
+###merge dataframes
+
+df_list <- list(trimmed_data_esq_selection, trimmed_data_fc_selection, trimmed_data_si_selection)
+trimmed_data_selection <- Reduce(function(x, y) merge(x, y, all=TRUE), df_list, accumulate=FALSE)
+
+###plot RTs of all conditions in merged dataframe
+
+plot_rt_selection <- trimmed_data_selection  %>%
+   mutate(quantifier='polarity') %>%    
+  mutate(given_response = fct_relevel(given_response, 
+              "nein, stimmt nicht", "ja, stimmt",  "komische Frage"))  %>%
+  ggplot(aes(y=pictureRT, x=experiment, colour = given_response)) +
+  stat_summary(fun = mean,
+               geom = "pointrange",
+               fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
+               fun.min = function(x) mean(x) - sd(x)/sqrt(length(x))) + 
+  #scale_y_continuous(labels = scales::percent) + 
+  ylab("mean RT in ms. (+/- 1 SEM)") +
+  xlab("compared models") +
+  scale_x_discrete(breaks=c("ES_Q","FC", "SI"),
+                   labels=c("BASE (Exp. 1)","DIST (Exp. 2)", "UB (Exp. 3)")) +
+  scale_colour_discrete(type= c("#F8766D", "#00BA38", "#619CFF"),labels = c("no, false","yes, true",  "weird question")) +
+  labs(colour = "Response") +
+  theme(text = element_text(size = 20))  + 
+   facet_grid(~ quantifier) +
+         theme(legend.position = 'none')+
+  theme(axis.title.y=element_blank(), axis.text.y=element_blank(),axis.title.x=element_blank(), axis.text.x = element_text(angle = 60, vjust = 1, hjust=1))+
+  coord_cartesian(ylim = c(1000, 2300))
+
+plot_rt_selection
+#ggsave(file.path(plots_dir,"plot_dist_vs_si_answer_polarity_effect.pdf"), width = 5, height = 5)
+#ggsave(file.path(plots_dir,"plot_dist_vs_si_answer_polarity_effect.png"), width = 5, height = 5)
+ggsave(file.path(plots_dir,"plot_dist_vs_si_answer_polarity_effect_wo.pdf"), width = 4, height = 6)
+ggsave(file.path(plots_dir,"plot_dist_vs_si_answer_polarity_effect_wo.png"), width = 4, height = 6)
+```
+
+### Save all
+```{r}
+save(trimmed_data, trimmed_data_esq, trimmed_data_fc, trimmed_data_si, trimmed_data_hom, trimmed_data_upto, trimmed_data_fillers, trimmed_data_selection, file = "trimmedData.RData")
+```
+
+
+
+
+

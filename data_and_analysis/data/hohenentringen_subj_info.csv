@@ -1,0 +1,82 @@
+id,missed_break_one,missed_break_two,missed_break_three,time_in_minutes,language,asses,age,gender,comments,fluent
+65b4a0c89f9c7,False,False,False,20.308833333333332,Deutsch,Yes,33,Male,"man hätte ggf. Farbenblindheit abfragen soll zu Beginn (trifft nicht auf mich zu)
+",Yes
+65b4501a1f627,True,False,False,18.527833333333334,Deutsch,Yes,35,Male,Eins der besten Experimente hier um ehrlich zu sein. war schon lustig wie sehr einem das Gehirn einen austrickst.,Yes
+65b4ea615241a,True,True,True,9.171433333333333,Deutsch,Yes,35,Male,,Yes
+65b447741132b,False,False,False,15.74135,deutsch,Yes,28,Female,,Yes
+65b4ccad59798,False,True,True,21.077916666666667,Deutsch,Yes,24,Female,,Yes
+65b4c8181c444,True,False,False,12.3448,deutsch,Yes,22,Female,,Yes
+65b4f276bcd27,False,True,True,9.250933333333334,Deutsch,Confused,20,Male,,Yes
+65b566fec0c2f,False,False,False,19.41625,deutsch,Yes,36,Female,,Yes
+65b5145c7055e,False,False,False,17.0101,Deutsch,Yes,24,Male,2. Teilnahme,Yes
+65b4c94d528a0,False,False,False,15.97665,Deutsch,Yes,35,Female,,Yes
+65b4a1e9b526d,False,False,False,13.52685,deutsch,Yes,31,Female,,Yes
+65b4eea24d8c5,False,False,False,14.30905,Deutsch,Yes,25,Male,,Yes
+65b510a106b2c,False,False,False,16.812933333333334,Deutsch,Yes,25,Female,,Yes
+65b520292dacf,False,False,False,18.925066666666666,Deutsch,Yes,35,Male,,Yes
+65b40096a9376,False,False,False,16.405683333333332,Deutsch,Yes,30,Male,,Yes
+65b523efe0c91,False,False,False,15.359016666666667,Deutsch,Yes,35,Male,,Yes
+65b4d9cbc2f15,False,False,False,14.659583333333334,Deutsch,Yes,21,Female,,Yes
+65b5255086520,False,False,False,16.3736,deutsch,Yes,20,Female,,Yes
+65b49cbce7899,True,True,False,18.162983333333333,Deutsch,Yes,36,Male,,Yes
+65b53d8fda9f4,False,False,True,12.464683333333333,Deutsch,Yes,24,Male,,Yes
+65b5280a4ec32,False,False,False,15.75915,deutsch,Yes,36,Female,,Yes
+65b4ef8354020,False,False,False,35.34335,deutsch,Yes,29,Female,,Yes
+65b5576b5dbb2,False,False,False,18.072366666666667,Deutsch,Yes,35,Female,,Yes
+65b4f4d723d7c,False,False,False,16.83805,Deutsch,Yes,25,Female,"Manchmal war ich mir unsicher, mit welcher Antwort ich reagieren sollte.",No
+65b50a5c1489d,False,False,False,23.49035,Deutsch,Yes,32,Female,,Yes
+65b4ca6ada848,False,False,False,19.428583333333332,Deutsch,Yes,28,Male,,Yes
+65b4bd0c79a85,False,False,False,14.252583333333334,deutsch,Yes,22,Female,,Yes
+65b54899d969d,False,False,False,27.980616666666666,Deutsch,Yes,30,Female,,Yes
+65b4effcf247c,False,False,False,13.372816666666667,Deutsch,Yes,32,Male,,Yes
+65b55eff62725,False,False,False,14.37045,deutsch,Yes,27,Female,,Yes
+65b4c69d38697,False,False,False,20.679466666666666,deutsch,Yes,29,Male,,Yes
+65b4e7d25d24f,False,False,False,13.435483333333334,deutsch,Yes,22,Male,,Yes
+65b4c92488912,False,False,False,16.8144,deutsch,Yes,39,Male,,No
+65b4ef5e1df62,False,False,False,27.784683333333334,deutsch,Yes,37,Male,,No
+65b51af69b6e1,False,False,False,36.21008333333333,deutsch,Yes,39,Female,,Yes
+65b534834b712,False,False,False,13.73805,Deutsch,Yes,21,Male,,Yes
+65b50327bfb3c,False,False,False,18.95991666666667,deutsch,Yes,24,Male,,Yes
+65b45de93a1f4,False,False,False,15.938833333333333,Deutsch,Yes,33,Male,,Yes
+65b65aead7fff,False,False,False,22.2669,Deutsch,Yes,39,Female,
+65b4cd1f2e66e,True,False,False,14.478766666666667,Deutsch,Yes,25,Female,,Yes
+65b4e47754770,False,False,False,17.134733333333333,deutsch,Yes,22,Male,,Yes
+65b51b80c4e3d,False,False,False,16.729483333333334,Deutsch,Yes,34,Female,,Yes
+65b43998c5a4d,False,False,False,28.784166666666668,Deutsch,Yes,27,Female,,Yes
+65b4f665707e0,False,False,False,20.6611,Deutsch,Yes,34,Female,"Die Farben waren teilweise, selbst bei größter Helligkeit, schlecht voneinander zu unterscheiden bzw. überhaupt zu erkennen (insb. der Unterschied zwischen grau, braun und schwarz).",Yes
+65b52c474ecda,False,False,False,19.3595,Deutsch,Yes,37,Male,"Schwierig, nichtsdestotrotz sehr interessantes Experiment.",No
+65b5061044616,False,False,False,20.80625,deutsch,Yes,37,Male,Ich habe sicherlich eine große Anzahl Fehler gemacht.,Yes
+65b53b1fd6c3b,False,False,False,17.536566666666666,deutsch,Yes,36,Female,,No
+65b50a02eab8e,False,False,False,60.335966666666664,deutsch,Yes,23,Male,Zweideutige Interpretation der Antwortmöglichkeiten bzw. Fragen.,Yes
+65b4aeee17d37,False,False,False,25.558133333333334,deutsch,Yes,35,Male,,Yes
+65b4bf56be61c,False,False,False,19.715633333333333,Deutsch,Yes,29,Male,,Yes
+65b64a18444c5,False,False,True,20.65015,Deutsch,Yes,35,Female,,No
+65b516f90b6c5,False,False,False,26.806533333333334,Deutsch,Yes,31,Female,,Yes
+65b5103a0ddaf,False,False,False,17.945633333333333,Deutsch,Yes,24,Male,,Yes
+65b4bb92f01ff,False,False,False,23.2131,"deutsch, russisch",Yes,37,Female,,Yes
+65b3fa983e373,False,False,False,14.1505,Deutsch,Yes,22,Male,,Yes
+65b520b51abd4,True,False,True,20.359266666666667,Deutsch,Yes,21,Male,,No
+65b516b8e7979,False,False,False,18.91658333333333,Deutsch,Yes,28,Male,,Yes
+65b4c4430e966,False,False,False,18.878083333333333,Deutsch,Yes,20,Female,,Yes
+65b4c545bd8bc,False,False,False,16.467033333333333,Deutsch,Yes,37,Female,,Yes
+65b519ca4c4f9,False,False,False,21.306266666666666,deutsch,Yes,33,Male,,Yes
+65b4c6da204cb,False,False,False,21.407583333333335,deutsch,Yes,21,Male,,Yes
+65b50ab8e8d5b,False,False,False,29.31725,deutsch,Yes,23,Female,,Yes
+65b4d5aa97e37,False,False,False,35.687983333333335,deutsch,Yes,23,Male,Durch die gewählten Fragen waren teilweise die Antworten sehr zweideutig und teilweise viel platzt für intapretation.,Yes
+65b3ff9b03566,False,False,False,17.40915,Deutsch,Yes,39,Male,,Yes
+65b533a573cde,False,False,True,19.558766666666667,"Deutsch, Französisch",Yes,31,Male,,Yes
+65b4efcd033ac,False,False,False,19.6159,deutsch,Yes,25,Female,,Yes
+65b4ffdbcf468,False,False,False,15.711383333333334,Deutsch,Yes,23,Female,,Yes
+65b4580ac0580,False,False,False,23.452066666666667,"Deutsch, Türkisch",Yes,26,Male,,Yes
+65b58b1700b54,False,False,False,16.284633333333332,deutsch,Yes,21,Female,,Yes
+65b54eb781604,False,False,False,16.936983333333334,deutsch,Yes,27,Female,"An einigen Stellen war ich mir nicht sicher, ob ""nein"" oder ""komische Frage"" passender war.",No
+65b4cec6000bc,False,False,False,19.3226,Deutsch,Yes,39,Male,,No
+65b4c87d76174,False,False,False,16.157383333333332,Deutsch,Yes,20,Female,,Yes
+65b673260eb94,True,False,False,13.680416666666666,deutsch,Yes,27,Female,,Yes
+65b4042455fcd,False,False,False,14.243916666666667,Deutsch,Yes,30,Male,,Yes
+65b55beec50f1,False,False,False,27.91155,Deutsch,Yes,27,Female,"Hat Spass gemacht und war interessant, vielen Dank",Yes
+65b561b3594bf,False,True,False,10.81535,deutsch,Yes,27,Female,,Yes
+65b4ef2037902,False,True,False,37.71061666666667,Deutsch,Confused,24,Male,,Yes
+65b4cae3cb20b,False,False,False,18.520883333333334,deutsch,Yes,33,Male,,Yes
+65b54007bd413,True,True,True,6.4202,Deustch,Yes,20,Other,,Yes
+65b4543bd545c,False,False,False,29.360366666666668,deutsch,Yes,39,Female,,Yes
