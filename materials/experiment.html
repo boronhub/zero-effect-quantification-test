@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片句子判断实验 / Picture-Sentence Judgment</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f4f6fa;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .screen.active { display: flex; }
+
+    #welcome-screen {
+      gap: 1.5rem;
+      max-width: 600px;
+      margin: auto;
+      text-align: center;
+    }
+    #welcome-screen h1 { font-size: 1.8rem; color: #1a3a5c; }
+    #welcome-screen p  { font-size: 1rem; line-height: 1.7; color: #444; }
+    #welcome-screen .response-example {
+      display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;
+      margin-top: 0.5rem;
+    }
+    #welcome-screen .response-example span {
+      background: #e8f0fe; border: 1px solid #b0c4de;
+      border-radius: 6px; padding: 0.3rem 0.8rem; font-size: 0.9rem;
+    }
+
+    #trial-screen {
+      gap: 1.5rem;
+    }
+    #progress-bar-wrap {
+      width: min(600px, 90vw);
+      background: #dde3ee;
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #3d7bd9;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+    #progress-label {
+      font-size: 0.82rem;
+      color: #666;
+      align-self: flex-end;
+      margin-right: calc((100vw - min(600px, 90vw)) / 2);
+    }
+    #image-container {
+      width: min(520px, 88vw);
+      background: #fff;
+      border: 1px solid #d0d8e8;
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 260px;
+    }
+    #trial-image {
+      max-width: 100%;
+      max-height: 340px;
+      object-fit: contain;
+    }
+    #sentence {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #1a3a5c;
+      text-align: center;
+      max-width: 520px;
+    }
+    #response-buttons {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: min(580px, 92vw);
+    }
+    .resp-btn {
+      flex: 1 1 140px;
+      min-width: 130px;
+      padding: 0.85rem 0.6rem;
+      font-size: 1rem;
+      font-family: inherit;
+      border: 2px solid #3d7bd9;
+      border-radius: 10px;
+      background: #fff;
+      color: #1a3a5c;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      text-align: center;
+    }
+    .resp-btn:hover  { background: #e8f0fe; }
+    .resp-btn:active { background: #c3d6f5; transform: scale(0.97); }
+
+    #finish-screen {
+      gap: 1.5rem;
+      text-align: center;
+      max-width: 500px;
+      margin: auto;
+    }
+    #finish-screen h2 { font-size: 1.6rem; color: #1a3a5c; }
+    #finish-screen p  { color: #444; line-height: 1.7; }
+    #stats { font-size: 0.95rem; background:#e8f0fe; border-radius:8px; padding:0.8rem 1.2rem; }
+
+    .btn-primary {
+      padding: 0.75rem 2.2rem;
+      font-size: 1.05rem;
+      font-family: inherit;
+      background: #3d7bd9;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #2b64bf; }
+  </style>
+</head>
+<body>
+
+<div id="welcome-screen" class="screen active">
+  <h1>图片句子判断实验</h1>
+  <p>
+    欢迎参加本实验！<br>
+    Welcome to the experiment!
+  </p>
+  <p>
+    每道题您将看到一张图片和一个句子。<br>
+    请判断该句子是否准确描述了图片，并选择以下三个选项之一：
+  </p>
+  <div class="response-example">
+    <span>是的，没错</span>
+    <span>不，不是真的</span>
+    <span>奇怪的问题</span>
+  </div>
+  <p>
+    请尽快作出判断——反应时间会被记录。<br>
+    <em>Please respond as quickly as possible. Reaction times will be recorded.</em>
+  </p>
+  <button class="btn-primary" onclick="startExperiment()">开始实验 / Start</button>
+</div>
+
+<div id="trial-screen" class="screen">
+  <div id="progress-bar-wrap"><div id="progress-bar" style="width:0%"></div></div>
+  <div id="progress-label">0 / 0</div>
+  <div id="image-container">
+    <img id="trial-image" src="" alt="stimulus" />
+  </div>
+  <div id="sentence"></div>
+  <div id="response-buttons">
+    <button class="resp-btn" onclick="recordResponse('是的，没错')">是的，没错</button>
+    <button class="resp-btn" onclick="recordResponse('不，不是真的')">不，不是真的</button>
+    <button class="resp-btn" onclick="recordResponse('奇怪的问题')">奇怪的问题</button>
+  </div>
+</div>
+
+<div id="finish-screen" class="screen">
+  <h2>实验完成！ / Experiment Complete!</h2>
+  <p>感谢您的参与。<br>Thank you for participating.</p>
+  <div id="stats"></div>
+  <button class="btn-primary" onclick="downloadResults()">下载结果 / Download Results (CSV)</button>
+</div>
+
+<script>
+let trials      = [];
+let results     = [];
+let currentIdx  = 0;
+let trialStart  = 0;
+let expStart    = 0;
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const vals = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
+    return obj;
+  });
+}
+
+function splitCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += ch; }
+  }
+  result.push(current);
+  return result;
+}
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function resolveImagePath(row) {
+  const exp = row['Experiment'];
+  const img = row['Image'];
+  if (exp === 'ESQ')  return `Experiment 1 ESQ - pictures/${img}`;
+  if (exp === 'DIST') return `Experiment 2 DIST - pictures/${img}`;
+  return img;
+}
+
+async function startExperiment() {
+  let rows;
+  try {
+    const resp = await fetch('stimulus_table_all_exps_zh.csv');
+    const text = await resp.text();
+    rows = parseCSV(text);
+  } catch (e) {
+    alert('Could not load stimulus_table_all_exps_zh.csv.\nMake sure it is in the same folder as this HTML file.');
+    return;
+  }
+
+  trials = shuffleArray(rows.filter(r => r['Type'] === 'Trial'));
+  currentIdx = 0;
+  results = [];
+  expStart = performance.now();
+
+  showScreen('trial-screen');
+  showTrial();
+}
+
+function showTrial() {
+  const row = trials[currentIdx];
+  const total = trials.length;
+
+  document.getElementById('progress-bar').style.width = `${(currentIdx / total) * 100}%`;
+  document.getElementById('progress-label').textContent = `${currentIdx + 1} / ${total}`;
+  const imgEl = document.getElementById('trial-image');
+  imgEl.src = resolveImagePath(row);
+  document.getElementById('sentence').textContent = row['Sentence_chinese'] || row['Sentence_zh'] || '';
+  setButtonsEnabled(false);
+  setTimeout(() => setButtonsEnabled(true), 200);
+  trialStart = performance.now();
+}
+
+function setButtonsEnabled(enabled) {
+  document.querySelectorAll('.resp-btn').forEach(b => b.disabled = !enabled);
+}
+
+function recordResponse(response) {
+  const rt = Math.round(performance.now() - trialStart);
+  const row = trials[currentIdx];
+  results.push({
+    trial_number:   currentIdx + 1,
+    experiment:     row['Experiment'],
+    item:           row['Item'],
+    condition:      row['Condition'],
+    condition_id:   row['Condition_ID'],
+    quantifier:     row['quantifier'],
+    scenario:       row['scenario'],
+    sentence:       row['Sentence_chinese'],
+    expected:       row['Expected_answer_zh'],
+    response:       response,
+    correct:        response === row['Expected_answer_zh'] ? 1 : 0,
+    reaction_time_ms: rt,
+    image:          row['Image'],
+  });
+
+  currentIdx++;
+  if (currentIdx < trials.length) {
+    showTrial();
+  } else {
+    finishExperiment();
+  }
+}
+
+function finishExperiment() {
+  const totalMs = Math.round(performance.now() - expStart);
+  const totalSec = (totalMs / 1000).toFixed(1);
+  const correct = results.filter(r => r.correct).length;
+
+  document.getElementById('stats').innerHTML =
+    `试题数 / Trials: <strong>${results.length}</strong> &nbsp;|&nbsp; ` +
+    `总时长 / Total time: <strong>${totalSec}s</strong>`;
+
+  showScreen('finish-screen');
+}
+
+function downloadResults() {
+  const totalMs = Math.round(performance.now() - expStart);
+  const cols = [
+    'trial_number','experiment','item','condition','condition_id',
+    'quantifier','scenario','sentence','expected','response','correct',
+    'reaction_time_ms','image'
+  ];
+
+  const lines = [cols.join(',')];
+  results.forEach(r => {
+    lines.push(cols.map(c => {
+      const v = String(r[c] ?? '');
+      return v.includes(',') || v.includes('"') || v.includes('\n')
+        ? `"${v.replace(/"/g, '""')}"` : v;
+    }).join(','));
+  });
+  lines.push('');
+  lines.push(`total_time_ms,${totalMs}`);
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `results_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+</script>
+</body>
+</html>
