@@ -227,8 +227,9 @@ function shuffleArray(arr) {
 function resolveImagePath(row) {
   const exp = row['Experiment'];
   const img = row['Image'];
-  if (exp === 'ESQ')  return `Experiment 1 ESQ - pictures/${img}`;
-  if (exp === 'DIST') return `Experiment 2 DIST - pictures/${img}`;
+  if (exp === 'ESQ')  return `ESQ/${img}`;
+  if (exp === 'DIST') return `DIST/${img}`;
+  if (exp === 'Filler') return `Filler/${img}`;
   return img;
 }
 
