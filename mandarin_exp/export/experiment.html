@@ -236,11 +236,27 @@ function resolveImagePath(row) {
 async function startExperiment() {
   let rows;
   try {
-    const resp = await fetch('stimulus_table_all_exps_zh.csv');
-    const text = await resp.text();
+    // Get list of participant CSV files from the participant_csvs folder
+    const resp = await fetch('participant_csvs/');
+    const html = await resp.text();
+    
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a'))
+      .map(a => a.textContent)
+      .filter(name => name.match(/^participant_\d+\.csv$/));
+    
+    if (links.length === 0) {
+      throw new Error('No participant CSV files found in participant_csvs folder');
+    }
+    
+    const randomFile = links[Math.floor(Math.random() * links.length)];
+    
+    const fileResp = await fetch(`participant_csvs/${randomFile}`);
+    const text = await fileResp.text();
     rows = parseCSV(text);
   } catch (e) {
-    alert('Could not load stimulus_table_all_exps_zh.csv.\nMake sure it is in the same folder as this HTML file.');
+    alert('Could not load participant CSV.\nMake sure the participant_csvs folder exists and contains participant_*.csv files.');
     return;
   }
 
